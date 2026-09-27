@@ -17,6 +17,7 @@ dependencies = [
   "streamlit>=1.50",
   "PyYAML>=6.0",
   "anthropic>=1.0,<2",
+  "cohere>=5.13,<8",
 ]
 
 [project.optional-dependencies]
@@ -32,6 +33,7 @@ where = ["src"]
 testpaths = ["tests"]
 pythonpath = ["src"]
 addopts = "-q"
+filterwarnings = ["ignore::DeprecationWarning:cohere.*"]
 
 [tool.ruff]
 line-length = 120

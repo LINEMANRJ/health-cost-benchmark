@@ -8,9 +8,9 @@ código testado — os fatos que a resposta precisa mencionar. Métricas:
 - fundamentação: nenhum número sem correspondência nas saídas das ferramentas;
 - custo: tokens de entrada/saída/cache e número de etapas.
 
-⚠️ Faz chamadas reais à API do Claude (custo por execução). Exige ANTHROPIC_API_KEY e a flag --yes.
+⚠️ Faz chamadas reais e pagas à API do provedor escolhido. Exige ANTHROPIC_API_KEY ou CO_API_KEY e a flag --yes.
 
-Uso: python scripts/run_agent_eval.py --yes [--model claude-opus-5] [--only 1,3]
+Uso: python scripts/run_agent_eval.py --yes [--provider anthropic|cohere] [--model ...] [--only 1,3]
 """
 from __future__ import annotations
 
@@ -27,8 +27,9 @@ sys.path.insert(0, str(ROOT / "src"))
 
 import pandas as pd  # noqa: E402
 
-from hcb.ai import tools  # noqa: E402
-from hcb.ai.agent import DEFAULT_MODEL, AgentError, from_settings  # noqa: E402
+from hcb.ai import agent as claude_agent  # noqa: E402
+from hcb.ai import cohere_agent, tools  # noqa: E402
+from hcb.ai.agent import AgentError  # noqa: E402
 
 
 @dataclass
@@ -72,14 +73,17 @@ def _norm(text: str) -> str:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--yes", action="store_true", help="Confirma que a execução tem custo de API")
-    parser.add_argument("--model", default=DEFAULT_MODEL)
+    parser.add_argument("--provider", choices=["anthropic", "cohere"], default="anthropic")
+    parser.add_argument("--model", default=None, help="Padrão: modelo recomendado do provedor")
     parser.add_argument("--only", default="", help="Índices dos casos (1-based), ex.: 1,3")
     args = parser.parse_args()
     if not args.yes:
-        print("Esta avaliação faz chamadas pagas à API do Claude. Rode novamente com --yes para confirmar.")
+        print("Esta avaliação faz chamadas pagas à API do modelo. Rode novamente com --yes para confirmar.")
         return 2
 
-    agent = from_settings(model=args.model)
+    module = cohere_agent if args.provider == "cohere" else claude_agent
+    model = args.model or module.DEFAULT_MODEL
+    agent = module.from_settings(model=model)
     selected = {int(i) for i in args.only.split(",") if i.strip()} or set(range(1, len(CASES) + 1))
     rows = []
     for i, case in enumerate(CASES, start=1):
@@ -102,7 +106,8 @@ def main() -> int:
 
     df = pd.DataFrame(rows)
     summary = {
-        "modelo": args.model,
+        "provedor": args.provider,
+        "modelo": model,
         "data": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "casos": len(df),
         "escolha_ferramenta": float(df["ferramenta_ok"].mean()),
@@ -113,7 +118,7 @@ def main() -> int:
         "tokens_saida": int(df["output_tokens"].sum()),
         "tokens_cache_lidos": int(df["cache_read_input_tokens"].sum()),
     }
-    out = ROOT / "reports" / "agent_eval.json"
+    out = ROOT / "reports" / f"agent_eval_{args.provider}.json"
     out.write_text(json.dumps({"resumo": summary, "casos": rows}, ensure_ascii=False, indent=2, default=str),
                    encoding="utf-8")
     print(json.dumps(summary, ensure_ascii=False, indent=2))

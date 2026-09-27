@@ -19,6 +19,7 @@ import pandas as pd  # noqa: E402
 import streamlit as st  # noqa: E402
 
 from hcb.ai.agent import AgentError, Conversation, HealthCostAgent  # noqa: E402
+from hcb.ai.cohere_agent import CohereHealthCostAgent  # noqa: E402
 from hcb.analysis import indicators, outliers, statistics  # noqa: E402
 from hcb.config import load_settings  # noqa: E402
 from hcb.formatting import brl, brl_compact, number, pct  # noqa: E402
@@ -390,11 +391,20 @@ EXAMPLES = [
 ]
 
 
+PROVIDERS = {
+    "Claude (Anthropic)": {"key": "ANTHROPIC_API_KEY", "hint": "ou faça `ant auth login`"},
+    "Cohere": {"key": "CO_API_KEY", "hint": "chave em dashboard.cohere.com"},
+}
+
+
 @st.cache_resource(show_spinner=False)
-def get_agent() -> HealthCostAgent:
+def get_agent(provider: str):
     settings = load_settings()
     data, _, _, synthetic = load_data()
-    return HealthCostAgent(data, synthetic=synthetic, audit_log=settings.reports_dir / "agent_audit.jsonl")
+    kwargs = {"synthetic": synthetic, "audit_log": settings.reports_dir / "agent_audit.jsonl"}
+    if provider == "Cohere":
+        return CohereHealthCostAgent(data, **kwargs)
+    return HealthCostAgent(data, **kwargs)
 
 
 def render_turn(question: str, result) -> None:
@@ -415,7 +425,8 @@ def render_turn(question: str, result) -> None:
                 st.code(json.dumps(call.input, ensure_ascii=False, indent=2), language="json")
                 if call.error:
                     st.caption(f"Erro devolvido ao modelo: {call.error}")
-            st.caption(f"Modelo: {result.model} · etapas: {result.steps} · tokens de entrada: "
+            st.caption(f"Provedor: {result.provider} · modelo: {result.model} · etapas: {result.steps} · "
+                       f"tokens de entrada: "
                        f"{number(result.usage['input_tokens'])} (cache: "
                        f"{number(result.usage['cache_read_input_tokens'])}) · saída: "
                        f"{number(result.usage['output_tokens'])}")
@@ -423,37 +434,42 @@ def render_turn(question: str, result) -> None:
 
 with tabs[8]:
     question("Pergunte aos dados em linguagem natural",
-             "Um agente de IA (Claude) consulta as mesmas funções testadas do pipeline e responde citando os "
-             "números retornados. Cada resposta mostra as consultas feitas e verifica se todos os números "
-             "vieram dos dados. Os filtros da barra lateral não se aplicam aqui: o agente usa a base completa "
-             "e declara os recortes que escolheu.")
-    if not os.environ.get("ANTHROPIC_API_KEY"):
-        st.info("Para usar o agente, defina a variável de ambiente `ANTHROPIC_API_KEY` antes de iniciar o "
-                "Streamlit (ou faça `ant auth login`). Veja `docs/ai_agent.md`. Nenhuma chave é armazenada "
-                "no projeto.")
-    st.session_state.setdefault("agent_conv", Conversation())
-    st.session_state.setdefault("agent_turns", [])
+             "Um agente de IA consulta as mesmas funções testadas do pipeline e responde citando os números "
+             "retornados. Cada resposta mostra as consultas feitas e verifica se todos os números vieram dos "
+             "dados. Os filtros da barra lateral não se aplicam aqui: o agente usa a base completa e declara os "
+             "recortes que escolheu.")
+    available = [name for name, cfg in PROVIDERS.items() if os.environ.get(cfg["key"])]
+    names = list(PROVIDERS)
+    provider = st.radio("Provedor do modelo", names, horizontal=True,
+                        index=names.index(available[0]) if available else 0,
+                        help="Mesmas ferramentas, verificação numérica e auditoria nos dois provedores.")
+    cfg = PROVIDERS[provider]
+    if not os.environ.get(cfg["key"]):
+        st.info(f"Para usar {provider}, defina a variável de ambiente `{cfg['key']}` antes de iniciar o "
+                f"Streamlit ({cfg['hint']}). Veja `docs/ai_agent.md`. Nenhuma chave é armazenada no projeto.")
+    # Histórico separado por provedor (formatos de mensagem diferentes).
+    state = st.session_state.setdefault("agent_state", {})
+    conv_state = state.setdefault(provider, {"conv": Conversation(), "turns": []})
 
     cols = st.columns(len(EXAMPLES))
     clicked = None
     for col, example in zip(cols, EXAMPLES, strict=True):
         if col.button(example, width="stretch"):
             clicked = example
-    for q, r in st.session_state["agent_turns"]:
+    for q, r in conv_state["turns"]:
         render_turn(q, r)
 
     typed = st.chat_input("Ex.: Qual região teve maior crescimento do custo médio?")
     prompt = typed or clicked
     if prompt:
-        with st.spinner("Consultando os dados…"):
+        with st.spinner(f"Consultando os dados com {provider}…"):
             try:
-                res = get_agent().ask(prompt, st.session_state["agent_conv"])
+                res = get_agent(provider).ask(prompt, conv_state["conv"])
             except AgentError as exc:
                 st.error(str(exc))
             else:
-                st.session_state["agent_turns"].append((prompt, res))
+                conv_state["turns"].append((prompt, res))
                 render_turn(prompt, res)
-    if st.session_state["agent_turns"] and st.button("Nova conversa"):
-        st.session_state["agent_conv"] = Conversation()
-        st.session_state["agent_turns"] = []
+    if conv_state["turns"] and st.button("Nova conversa"):
+        state[provider] = {"conv": Conversation(), "turns": []}
         st.rerun()

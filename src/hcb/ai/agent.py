@@ -63,6 +63,7 @@ class AgentResult:
     model: str
     ungrounded: list[str]
     usage: dict[str, int]
+    provider: str = "anthropic"
 
     @property
     def grounded(self) -> bool:
@@ -75,6 +76,42 @@ class Conversation:
 
     messages: list[dict] = field(default_factory=list)
     tool_outputs: list[Any] = field(default_factory=list)
+
+
+def execute_tool(fact: pd.DataFrame, name: str, args: dict) -> ToolCall:
+    """Executa uma ferramenta com tratamento de erros comum a todos os provedores de modelo."""
+    t0 = time.perf_counter()
+    try:
+        output = agent_tools.call_tool(fact, name, args)
+        return ToolCall(name, args, True, int((time.perf_counter() - t0) * 1000), output)
+    except (agent_tools.ToolInputError, KeyError) as exc:
+        msg = str(exc).strip("'\"")
+    except Exception as exc:  # falha inesperada: o modelo recebe o erro e pode se recuperar
+        log.exception("Falha na ferramenta %s", name)
+        msg = f"Falha interna ao executar {name}: {type(exc).__name__}"
+    return ToolCall(name, args, False, int((time.perf_counter() - t0) * 1000), error=msg)
+
+
+def tool_result_text(call: ToolCall) -> str:
+    return json.dumps(call.output, ensure_ascii=False, default=str) if call.ok else f"Erro: {call.error}"
+
+
+def write_audit(path: Path | None, result: AgentResult) -> None:
+    """Acrescenta a interação ao log de auditoria JSONL (sem credenciais)."""
+    if not path:
+        return
+    record = {
+        "timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        **{k: v for k, v in asdict(result).items() if k != "tool_calls"},
+        "tool_calls": [{"name": c.name, "input": c.input, "ok": c.ok, "duration_ms": c.duration_ms,
+                        "error": c.error} for c in result.tool_calls],
+    }
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(record, ensure_ascii=False, default=str) + "\n")
+    except OSError:
+        log.warning("Não foi possível gravar o log de auditoria em %s", path)
 
 
 def build_system_prompt(fact: pd.DataFrame, synthetic: bool) -> str:
@@ -173,22 +210,10 @@ class HealthCostAgent:
 
     # ------------------------------------------------------------------ ferramentas
     def _run_tool(self, block: Any) -> tuple[dict, ToolCall]:
-        t0 = time.perf_counter()
-        args = block.input if isinstance(block.input, dict) else {}
-        try:
-            output = agent_tools.call_tool(self.fact, block.name, args)
-            content = json.dumps(output, ensure_ascii=False, default=str)
-            call = ToolCall(block.name, args, True, int((time.perf_counter() - t0) * 1000), output)
-            result = {"type": "tool_result", "tool_use_id": block.id, "content": content}
-        except (agent_tools.ToolInputError, KeyError) as exc:
-            msg = str(exc).strip("'\"")
-            call = ToolCall(block.name, args, False, int((time.perf_counter() - t0) * 1000), error=msg)
-            result = {"type": "tool_result", "tool_use_id": block.id, "content": f"Erro: {msg}", "is_error": True}
-        except Exception as exc:  # falha inesperada: o modelo recebe o erro e pode se recuperar
-            log.exception("Falha na ferramenta %s", block.name)
-            msg = f"Falha interna ao executar {block.name}: {type(exc).__name__}"
-            call = ToolCall(block.name, args, False, int((time.perf_counter() - t0) * 1000), error=msg)
-            result = {"type": "tool_result", "tool_use_id": block.id, "content": msg, "is_error": True}
+        call = execute_tool(self.fact, block.name, block.input if isinstance(block.input, dict) else {})
+        result = {"type": "tool_result", "tool_use_id": block.id, "content": tool_result_text(call)}
+        if not call.ok:
+            result["is_error"] = True
         return result, call
 
     # ------------------------------------------------------------------ loop
@@ -254,20 +279,7 @@ class HealthCostAgent:
         return result
 
     def _audit(self, result: AgentResult) -> None:
-        if not self.audit_log:
-            return
-        record = {
-            "timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-            **{k: v for k, v in asdict(result).items() if k != "tool_calls"},
-            "tool_calls": [{"name": c.name, "input": c.input, "ok": c.ok, "duration_ms": c.duration_ms,
-                            "error": c.error} for c in result.tool_calls],
-        }
-        try:
-            self.audit_log.parent.mkdir(parents=True, exist_ok=True)
-            with self.audit_log.open("a", encoding="utf-8") as fh:
-                fh.write(json.dumps(record, ensure_ascii=False, default=str) + "\n")
-        except OSError:
-            log.warning("Não foi possível gravar o log de auditoria em %s", self.audit_log)
+        write_audit(self.audit_log, result)
 
 
 def _text(response: Any) -> str:

@@ -1,7 +1,14 @@
 # Agente de IA: "Pergunte aos dados"
 
-Agente conversacional que responde perguntas sobre custos hospitalares em português. Ele usa a
-**API do Claude com uso de ferramentas (tool use)**. O modelo **não calcula números**: ele interpreta a
+Agente conversacional que responde perguntas sobre custos hospitalares em português. Ele funciona com **dois
+provedores de modelo**, que usam as mesmas ferramentas, a mesma verificação numérica e a mesma auditoria:
+
+| Provedor | Módulo | Modelo padrão | Credencial |
+|---|---|---|---|
+| **Claude (Anthropic)** | `hcb.ai.agent` | `claude-opus-5` | `ANTHROPIC_API_KEY` (ou `ant auth login`) |
+| **Cohere** | `hcb.ai.cohere_agent` | `command-a-plus-05-2026` | `CO_API_KEY` |
+
+Nos dois casos, o agente usa **uso de ferramentas (tool use)**. O modelo **não calcula números**: ele interpreta a
 pergunta, escolhe as ferramentas, chama funções determinísticas e testadas do pipeline e redige a resposta a
 partir dos resultados.
 
@@ -32,10 +39,13 @@ sequenceDiagram
    export ANTHROPIC_API_KEY="sua-chave"      # Windows PowerShell: $env:ANTHROPIC_API_KEY="sua-chave"
    ```
    Alternativa: `ant auth login`, que o SDK detecta automaticamente.
-2. **Dashboard:** `streamlit run dashboard/app.py` e abra a aba **🤖 Pergunte aos dados**.
+   Para a Cohere, crie a chave em https://dashboard.cohere.com e use `export CO_API_KEY="sua-chave"`.
+2. **Dashboard:** `streamlit run dashboard/app.py`, abra a aba **🤖 Pergunte aos dados** e escolha o
+   **provedor**. Cada provedor tem seu próprio histórico de conversa.
 3. **Terminal:**
    ```bash
-   python -m hcb.ai.agent "Quais UFs gastam acima do esperado para o seu mix?" -v
+   python -m hcb.ai.agent "Quais UFs gastam acima do esperado para o seu mix?" -v          # Claude
+   python -m hcb.ai.cohere_agent "Quais UFs gastam acima do esperado para o seu mix?" -v   # Cohere
    ```
 
 Exemplos de perguntas:
@@ -81,6 +91,21 @@ médio do subgrupo, P = custo médio geral). A soma dos três efeitos é igual �
 | Rastreabilidade | Auditoria JSONL em `reports/agent_audit.jsonl` (pergunta, ferramentas, entradas, tokens e resposta; não versionado) |
 | Vazamento de credencial | A chave só é lida do ambiente. O teste de integração verifica que ela não aparece no corpo da requisição |
 
+## Diferenças entre os provedores
+
+| Aspecto | Claude (`hcb.ai.agent`) | Cohere (`hcb.ai.cohere_agent`) |
+|---|---|---|
+| API | Messages API (`client.beta.messages.create`) | Chat v2 (`cohere.ClientV2().chat`) |
+| Formato das ferramentas | `name`, `description`, `input_schema` | `{"type": "function", "function": {name, description, parameters}}` |
+| Chamada de ferramenta | blocos `tool_use` (`stop_reason="tool_use"`) | `message.tool_calls` com argumentos em JSON string (`finish_reason="TOOL_CALL"`) e um `tool_plan` |
+| Resultado da ferramenta | `tool_result` numa mensagem `user` | mensagem `role: "tool"` com um `document` |
+| Filtros com vários valores | aceitos (`["SP", "RJ"]`) | um valor por filtro (o schema é simplificado para tipos simples) |
+| Recusa por política | `fallbacks: "default"` reexecuta no modelo recomendado | tratada como resposta normal |
+| Cache de prompt | explícito (`cache_control`) | automático do provedor, quando houver (`usage.cached_tokens`) |
+
+As ferramentas (`hcb.ai.tools`), o system prompt, o grounding, o limite de etapas, o tratamento de erros e o
+log de auditoria são **compartilhados**. Cada registro de auditoria traz o campo `provider`.
+
 ## Custo e desempenho
 
 - **Modelo:** `claude-opus-5`, com raciocínio adaptativo (padrão do modelo). Pode ser trocado com `--model` ou
@@ -101,10 +126,12 @@ do escopo (CPF de pacientes). O script mede:
 - tokens e etapas.
 
 ```bash
-python scripts/run_agent_eval.py --yes   # chamadas pagas; exige a flag de confirmação
+python scripts/run_agent_eval.py --yes                     # Claude (chamadas pagas)
+python scripts/run_agent_eval.py --yes --provider cohere   # Cohere (chamadas pagas)
 ```
 
-O resultado é gravado em `reports/agent_eval.json`. Rode antes e depois de mudar o prompt, as ferramentas ou
+O resultado é gravado em `reports/agent_eval_<provedor>.json`. Com os dois arquivos, dá para **comparar os
+provedores** nas mesmas perguntas: escolha de ferramenta, acerto, fundamentação e tokens. Rode antes e depois de mudar o prompt, as ferramentas ou
 o modelo.
 
 ## Testes (sem custo)
@@ -112,7 +139,9 @@ o modelo.
 - `tests/test_agent.py`: loop do agente com um cliente simulado. Cobre chamada de ferramentas, erros
   devolvidos ao modelo, limite de etapas, recusa, conversa de vários turnos só com acréscimos, grounding e a
   decomposição exata de `compare_periods`.
-- `tests/test_agent_sdk_integration.py`: usa o **SDK oficial** contra um servidor HTTP local que imita a
+- `tests/test_cohere_agent.py`: o mesmo conjunto de cenários para a Cohere, com cliente simulado e com o
+  **SDK oficial `cohere`** contra um servidor HTTP local.
+- `tests/test_agent_sdk_integration.py`: usa o **SDK oficial** da Anthropic contra um servidor HTTP local que imita a
   API. Valida a serialização real das requisições (ferramentas, cache, fallback, histórico reenviado), sem
   rede nem custo.
 

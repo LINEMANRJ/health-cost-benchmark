@@ -63,7 +63,7 @@ Versão em texto (para leitores sem suporte a Mermaid):
 | Relatórios | `hcb/reporting.py` | Resumo analítico em Markdown respondendo às perguntas de negócio |
 | Orquestração | `hcb/pipeline.py` | Executa as etapas, grava saídas e trata erros com código de saída ≠ 0 |
 | Apresentação | `dashboard/` | Streamlit + Plotly, filtros e indicadores recalculados sobre o recorte |
-| Agente de IA | `hcb/ai/agent.py`, `tools.py`, `grounding.py` | Loop de *tool use* com a API do Claude, 10 ferramentas somente leitura e verificação numérica das respostas ([ai_agent.md](ai_agent.md)) |
+| Agente de IA | `hcb/ai/agent.py`, `cohere_agent.py`, `tools.py`, `grounding.py` | Loop de *tool use* com a API do Claude ou da Cohere, 10 ferramentas somente leitura e verificação numérica das respostas ([ai_agent.md](ai_agent.md)) |
 | Evolução | `hcb/forecasting.py` | Baseline de previsão |
 
 ## Decisões de projeto

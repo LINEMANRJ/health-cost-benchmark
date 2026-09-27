@@ -299,7 +299,7 @@ def build(output: Path) -> Path:
     <div class="step"><b>Análise</b>tendência, testes, atípicos</div><span class="arrow">→</span>
     <div class="step"><b>Visualização</b>Streamlit · esta página</div>
   </div>
-  <p class="answer">Stack: Python, pandas, SciPy, Plotly, Streamlit e pytest (67 testes), com CI no GitHub Actions.
+  <p class="answer">Stack: Python, pandas, SciPy, Plotly, Streamlit e pytest (75 testes), com CI no GitHub Actions.
   Esta página é gerada pelos mesmos módulos testados do pipeline.
   Veja a <a href="{BLOB}/docs/architecture.md">arquitetura</a>, o <a href="{BLOB}/docs/data_dictionary.md">dicionário de dados</a>
   e os <a href="{BLOB}/docs/future_improvements.md">próximos passos</a>: previsão, ML para anomalias e agente de IA.</p>
@@ -307,14 +307,15 @@ def build(output: Path) -> Path:
 
 <section id="agente">
   <h2>🤖 Agente de IA: "Pergunte aos dados"</h2>
-  <p class="answer">No dashboard, um agente conversacional baseado na API do Claude com <i>tool use</i> responde
+  <p class="answer">No dashboard, um agente conversacional com <i>tool use</i>, que funciona com <b>Claude (Anthropic) ou
+  Cohere</b>, responde
   perguntas em português, como <i>"O que explica o aumento do gasto entre 2023 e 2024: volume, mix ou custo
   unitário?"</i>. <b>O modelo não calcula números.</b> Ele escolhe entre 10 ferramentas que executam o mesmo
   código testado desta página, e cada número da resposta é conferido com as saídas das ferramentas antes de
   ser exibido.</p>
   <div class="flow">
     <div class="step"><b>Pergunta</b>linguagem natural</div><span class="arrow">→</span>
-    <div class="step"><b>Claude</b>escolhe a ferramenta</div><span class="arrow">→</span>
+    <div class="step"><b>Claude ou Cohere</b>escolhe a ferramenta</div><span class="arrow">→</span>
     <div class="step"><b>Ferramentas</b>somente leitura, testadas</div><span class="arrow">→</span>
     <div class="step"><b>Grounding</b>confere os números</div><span class="arrow">→</span>
     <div class="step"><b>Resposta</b>com as consultas feitas</div>

@@ -5,7 +5,7 @@ Pipeline de dados com validação de qualidade, indicadores com metodologia docu
 detecção de atípicos e um dashboard interativo.
 
 ![Python](https://img.shields.io/badge/Python-3.10%2B-2a78d6) ![Streamlit](https://img.shields.io/badge/Dashboard-Streamlit-eb6834)
-![Testes](https://img.shields.io/badge/testes-67%20passando-1baf7a) ![Licença](https://img.shields.io/badge/licen%C3%A7a-MIT-52514e)
+![Testes](https://img.shields.io/badge/testes-75%20passando-1baf7a) ![Licença](https://img.shields.io/badge/licen%C3%A7a-MIT-52514e)
 
 > ⚠️ **Os resultados deste repositório foram gerados a partir de uma base SINTÉTICA** que reproduz a
 > estrutura do SIH/SUS (DATASUS). Ela permite executar o projeto de ponta a ponta, offline. Os números
@@ -171,8 +171,8 @@ negativos, 4 com quantidade zero e 3 UFs inválidas). É **100% dos problemas in
 | Visualização | Plotly (dashboard), Matplotlib (figuras estáticas) |
 | Dashboard | Streamlit |
 | Configuração | YAML (`config/settings.yaml`) |
-| IA generativa | API do Claude (SDK `anthropic`): *tool use*, prompt caching, fallback em caso de recusa |
-| Qualidade | pytest (67 testes), ruff, GitHub Actions (Python 3.10 e 3.12) |
+| IA generativa | API do Claude (SDK `anthropic`: *tool use*, prompt caching, fallback em caso de recusa) e API da Cohere (SDK `cohere`, Chat v2 com *tool use*) |
+| Qualidade | pytest (75 testes), ruff, GitHub Actions (Python 3.10 e 3.12) |
 | Notebooks | Jupyter (gerados e executados por script) |
 
 ## 10. Como executar
@@ -199,7 +199,7 @@ O dashboard também roda o pipeline sozinho na primeira abertura, se as saídas 
 
 ```bash
 pip install -r requirements-dev.txt
-pytest                               # 67 testes
+pytest                               # 75 testes
 ruff check .                         # lint
 python scripts/make_figures.py       # figuras do README
 python scripts/build_notebooks.py    # regera e executa os notebooks
@@ -214,8 +214,8 @@ Com `make`: `make install`, `make pipeline`, `make dashboard`, `make test`, `mak
 
 **Configuração** (`config/settings.yaml`): fonte de dados (`synthetic` ou `contract_csv`), período e semente
 da base sintética, limite de rejeição, limiar de atipicidade e nível de significância. Nenhuma credencial é
-necessária para o pipeline e o dashboard. Só o agente de IA precisa de `ANTHROPIC_API_KEY`, lida do ambiente
-(modelo em `.env.example`).
+necessária para o pipeline e o dashboard. Só o agente de IA precisa de `ANTHROPIC_API_KEY` (Claude) ou
+`CO_API_KEY` (Cohere), lidas do ambiente (modelo em `.env.example`).
 
 ## 11. Exemplos de resultados
 
@@ -272,13 +272,17 @@ tabela exportável.
 
 ## 🤖 Agente de IA: "Pergunte aos dados"
 
-Um agente conversacional (API do Claude com *tool use*) responde perguntas em português, como *"O que
+Um agente conversacional com *tool use* e **dois provedores à escolha, Claude (Anthropic) ou Cohere**,
+responde perguntas em português, como *"O que
 explica o aumento do gasto entre 2023 e 2024: volume, mix ou custo unitário?"*. Ele funciona na aba
 **🤖 Pergunte aos dados** do dashboard ou no terminal:
 
 ```bash
-export ANTHROPIC_API_KEY="sua-chave"   # nunca versionada
+export ANTHROPIC_API_KEY="sua-chave"   # Claude; nunca versionada
 python -m hcb.ai.agent "Quais UFs gastam acima do esperado para o seu mix?" -v
+
+export CO_API_KEY="sua-chave"          # Cohere; nunca versionada
+python -m hcb.ai.cohere_agent "Quais UFs gastam acima do esperado para o seu mix?" -v
 ```
 
 - **O modelo não calcula números.** Ele escolhe entre 10 ferramentas determinísticas (`src/hcb/ai/tools.py`)
@@ -288,8 +292,9 @@ python -m hcb.ai.agent "Quais UFs gastam acima do esperado para o seu mix?" -v
   ferramentas, e as divergências são sinalizadas na interface.
 - **Proteções:** ferramentas somente leitura com validação de entrada, limite de etapas, fallback em caso de
   recusa, prompt caching e log de auditoria em JSONL.
-- **Qualidade:** testes sem custo (cliente simulado e SDK oficial contra um servidor local) e um eval com
-  respostas de referência calculadas pelo pipeline (`scripts/run_agent_eval.py`).
+- **Qualidade:** testes sem custo para os dois provedores (cliente simulado e SDKs oficiais contra um servidor
+  local) e um eval com respostas de referência calculadas pelo pipeline, que permite comparar os provedores
+  (`scripts/run_agent_eval.py --provider anthropic|cohere`).
 
 📄 [Documentação do agente](docs/ai_agent.md)
 
@@ -344,14 +349,14 @@ health-cost-benchmark/
 │   ├── ingestion/              # sintético, TabNet, loader
 │   ├── processing/             # tratamento, validação, transformação
 │   ├── analysis/               # indicadores, estatística, atípicos
-│   ├── ai/                     # agente de IA: agent.py, tools.py, grounding.py
+│   ├── ai/                     # agente de IA: agent.py (Claude), cohere_agent.py, tools.py, grounding.py
 │   ├── forecasting.py          # baseline de previsão
 │   ├── reporting.py            # resumo analítico
 │   └── pipeline.py             # orquestração (CLI)
 ├── dashboard/                  # app Streamlit + gráficos Plotly
 ├── notebooks/                  # 01 exploratória · 02 estatística · 03 atípicos
 ├── scripts/                    # geração de dados, figuras, notebooks, site (Pages)
-├── tests/                      # 67 testes unitários e de integração
+├── tests/                      # 75 testes unitários e de integração
 ├── reports/                    # relatório de qualidade e resumo analítico
 ├── docs/                       # arquitetura, fontes, dicionário, metodologia, evolução
 └── .github/workflows/          # ci.yml (lint + testes + pipeline) · pages.yml (deploy do site)

@@ -1,0 +1,7 @@
+# Dependências de execução (pipeline + dashboard)
+pandas>=2.2,<4
+numpy>=1.26,<3
+scipy>=1.11,<2
+plotly>=5.18,<8
+streamlit>=1.32,<2
+PyYAML>=6.0,<7

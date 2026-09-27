@@ -1,0 +1,231 @@
+{
+  "generated_at": "2026-09-27T02:03:58+00:00",
+  "rows_received": 15012,
+  "rows_approved": 14992,
+  "rows_quarantined": 20,
+  "rejected_ratio": 0.001332,
+  "status": "APROVADO COM ALERTAS",
+  "rules": [
+    {
+      "name": "competencia_valida",
+      "description": "Competência presente e no formato AAAA-MM",
+      "severity": "erro",
+      "failed_rows": 0,
+      "examples": []
+    },
+    {
+      "name": "uf_valida",
+      "description": "UF pertence à tabela de referência do IBGE",
+      "severity": "erro",
+      "failed_rows": 3,
+      "examples": [
+        {
+          "competencia": "2023-02",
+          "uf_sigla": "XX",
+          "subgrupo_codigo": "0305",
+          "qtd_internacoes": 456.0,
+          "valor_total": 879313.35,
+          "dias_permanencia": 2743.0
+        },
+        {
+          "competencia": "2024-01",
+          "uf_sigla": "XX",
+          "subgrupo_codigo": "0405",
+          "qtd_internacoes": 325.0,
+          "valor_total": 229830.84,
+          "dias_permanencia": 326.0
+        },
+        {
+          "competencia": "2024-02",
+          "uf_sigla": "XX",
+          "subgrupo_codigo": "0305",
+          "qtd_internacoes": 39.0,
+          "valor_total": 59801.72,
+          "dias_permanencia": 220.0
+        }
+      ]
+    },
+    {
+      "name": "subgrupo_valido",
+      "description": "Subgrupo pertence à tabela de referência SIGTAP do projeto",
+      "severity": "erro",
+      "failed_rows": 0,
+      "examples": []
+    },
+    {
+      "name": "qtd_preenchida",
+      "description": "Quantidade de internações numérica e preenchida",
+      "severity": "erro",
+      "failed_rows": 0,
+      "examples": []
+    },
+    {
+      "name": "qtd_positiva",
+      "description": "Quantidade de internações > 0 (valor sem internação é inconsistente)",
+      "severity": "erro",
+      "failed_rows": 4,
+      "examples": [
+        {
+          "competencia": "2022-11",
+          "uf_sigla": "PB",
+          "subgrupo_codigo": "0405",
+          "qtd_internacoes": 0.0,
+          "valor_total": 139085.43,
+          "dias_permanencia": 187.0
+        },
+        {
+          "competencia": "2023-09",
+          "uf_sigla": "PR",
+          "subgrupo_codigo": "0304",
+          "qtd_internacoes": 0.0,
+          "valor_total": 7643651.83,
+          "dias_permanencia": 14252.0
+        },
+        {
+          "competencia": "2024-07",
+          "uf_sigla": "SC",
+          "subgrupo_codigo": "0308",
+          "qtd_internacoes": 0.0,
+          "valor_total": 1610474.92,
+          "dias_permanencia": 3974.0
+        }
+      ]
+    },
+    {
+      "name": "qtd_inteira",
+      "description": "Quantidade de internações é número inteiro",
+      "severity": "erro",
+      "failed_rows": 0,
+      "examples": []
+    },
+    {
+      "name": "valor_preenchido",
+      "description": "Valor total numérico e preenchido",
+      "severity": "erro",
+      "failed_rows": 8,
+      "examples": [
+        {
+          "competencia": "2022-03",
+          "uf_sigla": "AP",
+          "subgrupo_codigo": "0304",
+          "qtd_internacoes": 136.0,
+          "valor_total": null,
+          "dias_permanencia": 681.0
+        },
+        {
+          "competencia": "2022-05",
+          "uf_sigla": "DF",
+          "subgrupo_codigo": "0404",
+          "qtd_internacoes": 149.0,
+          "valor_total": null,
+          "dias_permanencia": 297.0
+        },
+        {
+          "competencia": "2022-12",
+          "uf_sigla": "CE",
+          "subgrupo_codigo": "0415",
+          "qtd_internacoes": 791.0,
+          "valor_total": null,
+          "dias_permanencia": 4748.0
+        }
+      ]
+    },
+    {
+      "name": "valor_nao_negativo",
+      "description": "Valor total não negativo",
+      "severity": "erro",
+      "failed_rows": 5,
+      "examples": [
+        {
+          "competencia": "2022-10",
+          "uf_sigla": "MG",
+          "subgrupo_codigo": "0505",
+          "qtd_internacoes": 290.0,
+          "valor_total": -10944314.97,
+          "dias_permanencia": 4537.0
+        },
+        {
+          "competencia": "2023-11",
+          "uf_sigla": "RO",
+          "subgrupo_codigo": "0305",
+          "qtd_internacoes": 53.0,
+          "valor_total": -90828.66,
+          "dias_permanencia": 313.0
+        },
+        {
+          "competencia": "2024-07",
+          "uf_sigla": "RN",
+          "subgrupo_codigo": "0407",
+          "qtd_internacoes": 1725.0,
+          "valor_total": -2391260.47,
+          "dias_permanencia": 5181.0
+        }
+      ]
+    },
+    {
+      "name": "chave_unica",
+      "description": "Uma única linha por competência × UF × subgrupo (sem conflito)",
+      "severity": "erro",
+      "failed_rows": 0,
+      "examples": []
+    },
+    {
+      "name": "dias_nao_negativo",
+      "description": "Dias de permanência não negativos",
+      "severity": "erro",
+      "failed_rows": 0,
+      "examples": []
+    },
+    {
+      "name": "dias_preenchido",
+      "description": "Dias de permanência preenchidos (necessário p/ custo por dia)",
+      "severity": "alerta",
+      "failed_rows": 0,
+      "examples": []
+    },
+    {
+      "name": "permanencia_plausivel",
+      "description": "Permanência média entre 0,5 e 60 dias",
+      "severity": "alerta",
+      "failed_rows": 0,
+      "examples": []
+    },
+    {
+      "name": "custo_unitario_plausivel",
+      "description": "Custo por internação entre R$ 50 e R$ 500 mil",
+      "severity": "alerta",
+      "failed_rows": 0,
+      "examples": []
+    }
+  ],
+  "dataset_checks": [
+    {
+      "name": "proporcao_rejeitada",
+      "description": "Proporção de linhas em quarentena ≤ 5.0%",
+      "severity": "erro",
+      "passed": true,
+      "detail": "0,133% das linhas rejeitadas"
+    },
+    {
+      "name": "periodo_minimo",
+      "description": "Série com pelo menos 12 meses",
+      "severity": "erro",
+      "passed": true,
+      "detail": "36 meses (2022-01 a 2024-12)"
+    },
+    {
+      "name": "meses_sem_lacuna",
+      "description": "Nenhum mês faltante na série",
+      "severity": "alerta",
+      "passed": true,
+      "detail": "sem lacunas"
+    },
+    {
+      "name": "cobertura_ufs",
+      "description": "Todas as UFs de referência presentes",
+      "severity": "alerta",
+      "passed": true,
+      "detail": "todas presentes"
+    }
+  ]
+}

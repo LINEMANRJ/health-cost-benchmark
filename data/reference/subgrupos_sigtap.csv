@@ -1,0 +1,17 @@
+subgrupo_codigo,subgrupo_nome,grupo_codigo,grupo_nome,complexidade_referencia
+0303,Tratamentos clínicos (outras especialidades),03,Procedimentos clínicos,Média
+0304,Tratamento em oncologia,03,Procedimentos clínicos,Alta
+0305,Tratamento em nefrologia,03,Procedimentos clínicos,Média
+0308,"Tratamento de lesões, envenenamentos e outros, decorrentes de causas externas",03,Procedimentos clínicos,Média
+0310,Parto e nascimento,03,Procedimentos clínicos,Média
+0403,Cirurgia do sistema nervoso central e periférico,04,Procedimentos cirúrgicos,Alta
+0404,"Cirurgia das vias aéreas superiores, da face, da cabeça e do pescoço",04,Procedimentos cirúrgicos,Média
+0405,Cirurgia do aparelho da visão,04,Procedimentos cirúrgicos,Média
+0406,Cirurgia do aparelho circulatório,04,Procedimentos cirúrgicos,Alta
+0407,"Cirurgia do aparelho digestivo, órgãos anexos e parede abdominal",04,Procedimentos cirúrgicos,Média
+0408,Cirurgia do sistema osteomuscular,04,Procedimentos cirúrgicos,Média
+0409,Cirurgia do aparelho geniturinário,04,Procedimentos cirúrgicos,Média
+0411,Cirurgia obstétrica,04,Procedimentos cirúrgicos,Média
+0415,Outras cirurgias,04,Procedimentos cirúrgicos,Média
+0416,Cirurgia em oncologia,04,Procedimentos cirúrgicos,Alta
+0505,"Transplante de órgãos, tecidos e células",05,"Transplantes de órgãos, tecidos e células",Alta

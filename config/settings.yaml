@@ -1,0 +1,40 @@
+# Health Cost Benchmark — configuração do pipeline
+# Caminhos são relativos à raiz do repositório.
+
+source:
+  # "synthetic"  -> gera/usa a base sintética (padrão; funciona offline)
+  # "contract_csv" -> usa um CSV já no formato-contrato (ex.: montado a partir do TabNet/DATASUS)
+  type: synthetic
+  raw_file: data/raw/sih_sus_sintetico.csv
+  synthetic:
+    seed: 42
+    start: "2022-01"
+    end: "2024-12"
+    inject_quality_issues: true
+    inject_anomalies: true
+
+reference:
+  ufs: data/reference/ufs.csv
+  subgroups: data/reference/subgrupos_sigtap.csv
+
+output:
+  processed_dir: data/processed
+  reports_dir: reports
+
+quality:
+  # Proporção máxima de linhas rejeitadas antes de o pipeline falhar.
+  max_rejected_ratio: 0.05
+  # Número mínimo de competências (meses) esperado no período.
+  min_months: 12
+
+outliers:
+  # Limite do escore robusto (|z|) para sinalizar atipicidade.
+  z_threshold: 3.5
+  # Volume mínimo de internações na célula para avaliar atipicidade.
+  min_admissions: 5
+
+analysis:
+  # Nível de significância para testes (após correção de Holm).
+  alpha: 0.05
+  # Participação acumulada usada na análise de Pareto.
+  pareto_share: 0.80

@@ -55,6 +55,40 @@ Exemplos de perguntas:
 - A tendência de custo é diferente entre as regiões?
 - Quanto a Bahia gastou com parto e nascimento em 2024?
 
+## Chat no site (GitHub Pages)
+
+A página https://linemanrj.github.io/health-cost-benchmark/#agente tem um chat com o agente **sem servidor**:
+
+```mermaid
+flowchart LR
+    V[Visitante] -->|pergunta + chave própria| JS[chat.js no navegador]
+    JS -->|mensagens + ferramentas| API[(API Claude ou Cohere)]
+    API -->|tool_use / tool_calls| JS
+    JS -->|executa| PY[Pyodide: pacote hcb + tabela fato]
+    PY -->|JSON das ferramentas| JS
+    JS -->|resposta + grounding| V
+```
+
+- **Mesmo código:** o Pyodide (Python 3.14 compilado para WebAssembly) roda no navegador o pacote `hcb`
+  publicado com o site. `web/bridge.py` expõe `run_tool`, o system prompt, as especificações das ferramentas
+  e a verificação numérica. As respostas usam as mesmas funções testadas do dashboard.
+- **Chave do visitante (BYOK):** cada visitante informa a própria chave. Ela fica só na memória da página
+  ou, se ele marcar "lembrar nesta aba", no `sessionStorage`. É enviada **apenas** ao endpoint do provedor.
+  A Content-Security-Policy da página limita as conexões a `api.anthropic.com` e `api.cohere.com`. A chamada
+  direta do navegador à Anthropic usa o cabeçalho `anthropic-dangerous-direct-browser-access`. Recomende
+  chaves com limite de gastos.
+- **Segurança da renderização:** o texto do modelo é escapado antes de ser formatado (markdown mínimo
+  próprio), o que impede injeção de HTML ou script.
+- **Tamanho:** cerca de 35 MB (núcleo do Pyodide, pandas, SciPy e dependências), baixados na primeira pergunta
+  e depois cacheados pelo navegador. O workflow do Pages baixa o Pyodide **314.0.7** (versão fixa) do GitHub
+  Releases e copia só os arquivos necessários (`scripts/build_site.py --pyodide-dir`).
+- **Teste de ponta a ponta:** `scripts/e2e_site_chat.py` abre o site num Chromium real, intercepta as APIs
+  com respostas simuladas e confere o loop do Claude e da Cohere, os cabeçalhos, o grounding, a proteção
+  contra injeção e a ausência de erros ou violações de CSP. Ele roda no workflow do Pages antes de cada
+  publicação.
+- **Limitações:** se a API de um provedor não aceitar chamadas diretas do navegador (CORS), o chat mostra o
+  erro. Nesse caso, use o dashboard local.
+
 ## Ferramentas
 
 | Ferramenta | Responde |

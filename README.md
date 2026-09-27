@@ -5,7 +5,7 @@ Pipeline de dados com validação de qualidade, indicadores com metodologia docu
 detecção de atípicos e um dashboard interativo.
 
 ![Python](https://img.shields.io/badge/Python-3.10%2B-2a78d6) ![Streamlit](https://img.shields.io/badge/Dashboard-Streamlit-eb6834)
-![Testes](https://img.shields.io/badge/testes-75%20passando-1baf7a) ![Licença](https://img.shields.io/badge/licen%C3%A7a-MIT-52514e)
+![Testes](https://img.shields.io/badge/testes-77%20passando-1baf7a) ![Licença](https://img.shields.io/badge/licen%C3%A7a-MIT-52514e)
 
 > ⚠️ **Os resultados deste repositório foram gerados a partir de uma base SINTÉTICA** que reproduz a
 > estrutura do SIH/SUS (DATASUS). Ela permite executar o projeto de ponta a ponta, offline. Os números
@@ -13,7 +13,7 @@ detecção de atípicos e um dashboard interativo.
 > [Fonte dos dados](#4-fonte-dos-dados).
 
 🌐 **Página do projeto (GitHub Pages):** https://linemanrj.github.io/health-cost-benchmark/ — resultados com
-gráficos interativos, sem instalar nada.
+gráficos interativos e **chat com o agente de IA** (Claude ou Cohere, com a sua chave), sem instalar nada.
 
 ![Dashboard — visão geral](docs/images/dashboard_overview.png)
 
@@ -172,7 +172,7 @@ negativos, 4 com quantidade zero e 3 UFs inválidas). É **100% dos problemas in
 | Dashboard | Streamlit |
 | Configuração | YAML (`config/settings.yaml`) |
 | IA generativa | API do Claude (SDK `anthropic`: *tool use*, prompt caching, fallback em caso de recusa) e API da Cohere (SDK `cohere`, Chat v2 com *tool use*) |
-| Qualidade | pytest (75 testes), ruff, GitHub Actions (Python 3.10 e 3.12) |
+| Qualidade | pytest (77 testes), ruff, GitHub Actions (Python 3.10 e 3.12) |
 | Notebooks | Jupyter (gerados e executados por script) |
 
 ## 10. Como executar
@@ -199,7 +199,7 @@ O dashboard também roda o pipeline sozinho na primeira abertura, se as saídas 
 
 ```bash
 pip install -r requirements-dev.txt
-pytest                               # 75 testes
+pytest                               # 77 testes
 ruff check .                         # lint
 python scripts/make_figures.py       # figuras do README
 python scripts/build_notebooks.py    # regera e executa os notebooks
@@ -296,6 +296,10 @@ python -m hcb.ai.cohere_agent "Quais UFs gastam acima do esperado para o seu mix
   local) e um eval com respostas de referência calculadas pelo pipeline, que permite comparar os provedores
   (`scripts/run_agent_eval.py --provider anthropic|cohere`).
 
+**Chat no site:** a [página do projeto](https://linemanrj.github.io/health-cost-benchmark/#agente) tem o
+mesmo agente rodando **no navegador**. O Python do projeto é executado via Pyodide (WebAssembly), e cada
+visitante usa a própria chave, enviada só ao provedor. Não há servidor nem chave no repositório.
+
 📄 [Documentação do agente](docs/ai_agent.md)
 
 ## 12. Limitações
@@ -355,8 +359,9 @@ health-cost-benchmark/
 │   └── pipeline.py             # orquestração (CLI)
 ├── dashboard/                  # app Streamlit + gráficos Plotly
 ├── notebooks/                  # 01 exploratória · 02 estatística · 03 atípicos
-├── scripts/                    # geração de dados, figuras, notebooks, site (Pages)
-├── tests/                      # 75 testes unitários e de integração
+├── scripts/                    # dados, figuras, notebooks, site (Pages), eval e teste e2e do chat
+├── web/                        # chat do site: chat.js (navegador) e bridge.py (Pyodide)
+├── tests/                      # 77 testes unitários e de integração
 ├── reports/                    # relatório de qualidade e resumo analítico
 ├── docs/                       # arquitetura, fontes, dicionário, metodologia, evolução
 └── .github/workflows/          # ci.yml (lint + testes + pipeline) · pages.yml (deploy do site)

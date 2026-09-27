@@ -4,15 +4,20 @@ O dashboard Streamlit precisa de um servidor Python; o GitHub Pages só serve ar
 estáticos. Este script reaproveita os mesmos cálculos (src/hcb) e os mesmos gráficos
 (dashboard/charts.py) para publicar uma página com gráficos Plotly interativos.
 
-Uso: python scripts/build_site.py [--output site]   (roda o pipeline se necessário)
+Uso: python scripts/build_site.py [--output site] [--pyodide-dir DIR]   (roda o pipeline se necessário)
+
+Com --pyodide-dir (ou PYODIDE_DIR) apontando para uma distribuição extraída do Pyodide, o site inclui
+o chat com o agente de IA rodando no navegador.
 """
 from __future__ import annotations
 
 import argparse
 import html
 import json
+import os
 import shutil
 import sys
+import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -80,7 +85,94 @@ pre { background:#0d0d0d; color:#f4f3ef; padding:14px 16px; border-radius:10px; 
 .caveat { border-left:3px solid #eda100; background:var(--card); padding:10px 14px; border-radius:0 8px 8px 0;
   color:var(--ink2); font-size:.92rem; }
 footer { margin-top:48px; padding:28px 0 40px; border-top:1px solid var(--line); color:var(--ink2); font-size:.88rem; }
+.chat-app { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; margin:16px 0; }
+.chat-controls { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; align-items:end; }
+.chat-controls label { display:block; font-size:.82rem; color:var(--ink2); margin-bottom:4px; font-weight:600; }
+.chat-controls input[type=text], .chat-controls input[type=password] { width:100%; padding:8px 10px;
+  border:1px solid var(--line); border-radius:8px; font:inherit; font-size:.9rem; background:#fff; }
+.chat-radio { display:flex; gap:14px; flex-wrap:wrap; padding:6px 0; font-size:.92rem; }
+.chat-note { font-size:.8rem; color:var(--muted); margin:8px 0 0; }
+.chat-examples { display:flex; flex-wrap:wrap; gap:8px; margin:14px 0 6px; }
+.chat-example { border:1px solid var(--line); background:#f4f3ef; border-radius:999px; padding:6px 12px;
+  font:inherit; font-size:.85rem; cursor:pointer; color:var(--ink); text-align:left; }
+.chat-example:hover:not(:disabled) { border-color:var(--accent); color:var(--accent); }
+#chat-log { display:flex; flex-direction:column; gap:10px; margin:12px 0; max-height:620px; overflow-y:auto; }
+.chat-msg { padding:10px 14px; border-radius:12px; max-width:92%; font-size:.93rem; overflow-wrap:anywhere; }
+.chat-msg p { margin:.3rem 0; }
+.chat-user { align-self:flex-end; background:var(--accent); color:#fff; }
+.chat-system { align-self:center; font-size:.8rem; color:var(--muted); padding:2px 8px; }
+.chat-assistant { align-self:flex-start; background:var(--surface); border:1px solid var(--line); }
+.chat-table { overflow-x:auto; margin:6px 0; }
+.chat-table table { font-size:.85rem; }
+.chat-ok { font-size:.8rem; color:#006300; margin-top:6px; }
+.chat-warn { font-size:.82rem; color:#7a5200; background:var(--warn-bg); border-radius:6px; padding:6px 8px; margin-top:6px; }
+.chat-err { color:#b42318; font-size:.88rem; }
+.chat-thinking { color:var(--muted); font-style:italic; }
+details summary { cursor:pointer; font-size:.82rem; color:var(--ink2); margin-top:6px; }
+.chat-calls { padding-left:18px; font-size:.82rem; }
+.chat-calls pre { background:#f4f3ef; color:var(--ink); padding:8px; border-radius:6px; font-size:.78rem; margin:4px 0; }
+.chat-meta { font-size:.78rem; color:var(--muted); }
+#chat-form { display:flex; gap:8px; }
+#chat-input { flex:1; padding:10px 12px; border:1px solid var(--line); border-radius:8px; font:inherit; min-width:0; }
+#chat-form button, .chat-secondary { padding:9px 14px; border-radius:8px; border:1px solid var(--accent);
+  background:var(--accent); color:#fff; font-weight:600; cursor:pointer; font:inherit; }
+.chat-secondary { background:#fff; color:var(--ink); border-color:var(--line); font-size:.85rem; padding:6px 10px; }
+button:disabled, input:disabled { opacity:.55; cursor:not-allowed; }
+#chat-status { font-size:.82rem; color:var(--ink2); margin:6px 0 0; min-height:1.2em; }
+#chat-status[data-kind=error] { color:#b42318; }
+#chat-status[data-kind=ok] { color:#006300; }
+.chat-footer { display:flex; gap:8px; justify-content:space-between; align-items:center; flex-wrap:wrap; margin-top:8px; }
 @media (max-width:640px) { header.hero { padding-top:32px; } .kpi .value { font-size:1.2rem; } }
+"""
+
+
+# Conexões permitidas apenas para a própria página e para as APIs dos provedores do chat.
+CSP = ("default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval'; "
+       "connect-src 'self' https://api.anthropic.com https://api.cohere.com; img-src 'self' data: blob:; "
+       "style-src 'self' 'unsafe-inline'; worker-src 'self' blob:; base-uri 'none'; form-action 'none'")
+
+CHAT_HTML = """
+  <div class="chat-app" id="chat-app">
+    <div class="chat-controls">
+      <div>
+        <label>Provedor do modelo</label>
+        <div class="chat-radio">
+          <label><input type="radio" name="chat-provider" value="anthropic" checked> Claude (Anthropic)</label>
+          <label><input type="radio" name="chat-provider" value="cohere"> Cohere</label>
+        </div>
+      </div>
+      <div>
+        <label for="chat-key">Sua chave de API</label>
+        <input id="chat-key" type="password" autocomplete="off" spellcheck="false">
+      </div>
+      <div>
+        <label for="chat-model">Modelo</label>
+        <input id="chat-model" type="text" spellcheck="false">
+      </div>
+    </div>
+    <p class="chat-note">🔒 A chave fica apenas neste navegador e é enviada <b>somente</b> à API do provedor
+      escolhido (a política de segurança da página bloqueia outros destinos). Use uma chave com limite de gastos.
+      <label><input type="checkbox" id="chat-remember"> lembrar nesta aba</label> ·
+      <a id="chat-key-link" href="#" target="_blank" rel="noopener">Obter chave</a></p>
+    <div class="chat-examples">
+      <button type="button" class="chat-example">O que explica o aumento do gasto entre 2023 e 2024: volume, mix ou custo unitário?</button>
+      <button type="button" class="chat-example">Quais UFs gastam mais do que o esperado para o seu mix de procedimentos?</button>
+      <button type="button" class="chat-example">Quais atípicos de cirurgia do aparelho circulatório devo auditar primeiro?</button>
+      <button type="button" class="chat-example">A tendência de custo é diferente entre as regiões?</button>
+    </div>
+    <div id="chat-log" aria-live="polite"></div>
+    <form id="chat-form" autocomplete="off">
+      <input id="chat-input" type="text" placeholder="Ex.: Qual região teve maior crescimento do custo médio?" maxlength="600">
+      <button type="submit">Enviar</button>
+    </form>
+    <div class="chat-footer">
+      <div id="chat-status"></div>
+      <div><button type="button" class="chat-secondary" id="chat-preload">Pré-carregar Python</button>
+        <button type="button" class="chat-secondary" id="chat-clear">Nova conversa</button></div>
+    </div>
+    <p class="chat-note">Base sintética. Cada pergunta consome créditos da sua conta no provedor.
+      Detalhes em <a href="{BLOB}/docs/ai_agent.md">docs/ai_agent.md</a>.</p>
+  </div>
 """
 
 
@@ -114,7 +206,46 @@ def load(settings):
     return fact, quality
 
 
-def build(output: Path) -> Path:
+PYODIDE_CORE = ["pyodide.js", "pyodide.mjs", "pyodide.asm.mjs", "pyodide.asm.wasm", "python_stdlib.zip",
+                 "pyodide-lock.json"]
+PYODIDE_PACKAGES = ["pandas", "scipy"]
+
+
+def _copy_pyodide(pyodide_dir: Path, dest: Path) -> None:
+    """Copia só o núcleo do Pyodide e as rodas necessárias (pandas, scipy e dependências)."""
+    lock = json.loads((pyodide_dir / "pyodide-lock.json").read_text(encoding="utf-8"))["packages"]
+    needed: set[str] = set()
+
+    def add(name: str) -> None:
+        if name not in needed:
+            needed.add(name)
+            for dep in lock[name]["depends"]:
+                add(dep)
+
+    for pkg in PYODIDE_PACKAGES:
+        add(pkg)
+    dest.mkdir(parents=True)
+    for name in PYODIDE_CORE + [lock[p]["file_name"] for p in sorted(needed)]:
+        src = pyodide_dir / name
+        if not src.exists():
+            raise FileNotFoundError(f"Arquivo do Pyodide ausente: {src}")
+        shutil.copy(src, dest / name)
+
+
+def _copy_chat_assets(output: Path, pyodide_dir: Path) -> None:
+    settings = load_settings()
+    (output / "py").mkdir()
+    with zipfile.ZipFile(output / "py" / "hcb.zip", "w", zipfile.ZIP_DEFLATED) as zf:
+        for path in sorted((ROOT / "src" / "hcb").rglob("*.py")):
+            zf.write(path, path.relative_to(ROOT / "src"))
+    shutil.copy(ROOT / "web" / "bridge.py", output / "py" / "bridge.py")
+    shutil.copy(ROOT / "web" / "chat.js", output / "chat.js")
+    (output / "data").mkdir()
+    shutil.copy(settings.processed_dir / FACT_FILE, output / "data" / FACT_FILE)
+    _copy_pyodide(pyodide_dir, output / "pyodide")
+
+
+def build(output: Path, pyodide_dir: Path | None = None) -> Path:
     settings = load_settings()
     fact, quality = load(settings)
     o = settings.outliers
@@ -192,6 +323,13 @@ def build(output: Path) -> Path:
               if synthetic else "")
     built = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
+    chat_enabled = pyodide_dir is not None
+    chat_scripts = ('<script src="pyodide/pyodide.js" defer></script>\n<script src="chat.js" defer></script>'
+                    if chat_enabled else "")
+    chat_html = CHAT_HTML.replace("{BLOB}", BLOB) if chat_enabled else (
+        '<p class="caveat">O chat não foi incluído nesta versão do site. Rode o dashboard localmente '
+        f'(<a href="{BLOB}/docs/ai_agent.md">instruções</a>).</p>')
+
     page = f"""<!doctype html>
 <html lang="pt-BR">
 <head>
@@ -202,8 +340,10 @@ def build(output: Path) -> Path:
 <meta property="og:title" content="Health Cost Benchmark">
 <meta property="og:description" content="Custos e economicidade em saúde com dados abertos (SIH/SUS).">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
+<meta http-equiv="Content-Security-Policy" content="{CSP}">
 <style>{CSS}</style>
 <script src="plotly.min.js"></script>
+{chat_scripts}
 </head>
 <body>
 <header class="hero"><div class="wrap">
@@ -217,6 +357,7 @@ def build(output: Path) -> Path:
     <a class="btn primary" href="{REPO_URL}">Ver código no GitHub</a>
     <a class="btn" href="{BLOB}/docs/methodology.md">Metodologia</a>
     <a class="btn" href="{BLOB}/docs/data_sources.md">Fonte dos dados</a>
+    <a class="btn" href="#agente">🤖 Conversar com o agente</a>
     <a class="btn" href="#executar">Executar o dashboard</a>
   </div>
   <div class="kpis">{kpi_html}</div>
@@ -299,29 +440,26 @@ def build(output: Path) -> Path:
     <div class="step"><b>Análise</b>tendência, testes, atípicos</div><span class="arrow">→</span>
     <div class="step"><b>Visualização</b>Streamlit · esta página</div>
   </div>
-  <p class="answer">Stack: Python, pandas, SciPy, Plotly, Streamlit e pytest (75 testes), com CI no GitHub Actions.
+  <p class="answer">Stack: Python, pandas, SciPy, Plotly, Streamlit e pytest (77 testes), com CI no GitHub Actions.
   Esta página é gerada pelos mesmos módulos testados do pipeline.
   Veja a <a href="{BLOB}/docs/architecture.md">arquitetura</a>, o <a href="{BLOB}/docs/data_dictionary.md">dicionário de dados</a>
   e os <a href="{BLOB}/docs/future_improvements.md">próximos passos</a>: previsão, ML para anomalias e agente de IA.</p>
 </section>
 
 <section id="agente">
-  <h2>🤖 Agente de IA: "Pergunte aos dados"</h2>
-  <p class="answer">No dashboard, um agente conversacional com <i>tool use</i>, que funciona com <b>Claude (Anthropic) ou
-  Cohere</b>, responde
-  perguntas em português, como <i>"O que explica o aumento do gasto entre 2023 e 2024: volume, mix ou custo
-  unitário?"</i>. <b>O modelo não calcula números.</b> Ele escolhe entre 10 ferramentas que executam o mesmo
-  código testado desta página, e cada número da resposta é conferido com as saídas das ferramentas antes de
-  ser exibido.</p>
+  <h2>🤖 Converse com o agente de IA</h2>
+  <p class="answer">Pergunte em português. Um modelo de linguagem (<b>Claude</b> ou <b>Cohere</b>) escolhe entre
+  10 ferramentas que executam <b>o mesmo código Python testado</b> do projeto, rodando aqui no seu navegador
+  (Pyodide), e cada número da resposta é conferido com as saídas das ferramentas antes de ser exibido.
+  <b>O modelo não calcula números.</b></p>
   <div class="flow">
     <div class="step"><b>Pergunta</b>linguagem natural</div><span class="arrow">→</span>
     <div class="step"><b>Claude ou Cohere</b>escolhe a ferramenta</div><span class="arrow">→</span>
-    <div class="step"><b>Ferramentas</b>somente leitura, testadas</div><span class="arrow">→</span>
+    <div class="step"><b>Ferramentas</b>Python no navegador</div><span class="arrow">→</span>
     <div class="step"><b>Grounding</b>confere os números</div><span class="arrow">→</span>
     <div class="step"><b>Resposta</b>com as consultas feitas</div>
   </div>
-  <p class="answer">A página é estática, então o chat roda no dashboard local com a sua chave de API. Veja a
-  <a href="{BLOB}/docs/ai_agent.md">documentação do agente</a>.</p>
+  {chat_html}
 </section>
 
 <section id="executar">
@@ -352,14 +490,19 @@ streamlit run dashboard/app.py</pre>
     shutil.copytree(ROOT / "docs" / "images", output / "images")
     # plotly.js servido junto do site (sem dependência de CDN), na mesma versão do pacote Python.
     shutil.copy(Path(plotly.__file__).parent / "package_data" / "plotly.min.js", output / "plotly.min.js")
+    if chat_enabled:
+        _copy_chat_assets(output, pyodide_dir)
     return output / "index.html"
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, default=ROOT / "site")
+    parser.add_argument("--pyodide-dir", type=Path, default=os.environ.get("PYODIDE_DIR"),
+                        help="Distribuição do Pyodide extraída (habilita o chat no site)")
     args = parser.parse_args()
-    path = build(args.output.resolve())
+    pyodide_dir = Path(args.pyodide_dir).resolve() if args.pyodide_dir else None
+    path = build(args.output.resolve(), pyodide_dir)
     print(f"Site gerado em {path} ({path.stat().st_size / 1e6:.1f} MB)")
     return 0
 

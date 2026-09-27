@@ -126,6 +126,18 @@ def run(settings: Settings, regenerate: bool = False) -> PipelineResult:
     return PipelineResult(fact=fact, scored=scored, quality=quality, outputs=outputs)
 
 
+def load_fact(settings: Settings) -> pd.DataFrame:
+    """Lê a tabela fato processada (executa o pipeline se ela ainda não existir)."""
+    from hcb.schema import REGION_ORDER
+
+    path = settings.processed_dir / FACT_FILE
+    if not path.exists():
+        run(settings)
+    fact = pd.read_csv(path, dtype={"subgrupo_codigo": str, "grupo_codigo": str}, parse_dates=["data"])
+    fact["regiao"] = pd.Categorical(fact["regiao"], categories=REGION_ORDER, ordered=True)
+    return fact
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Executa o pipeline do Health Cost Benchmark.")
     parser.add_argument("--config", type=Path, default=None, help="Caminho do settings.yaml")

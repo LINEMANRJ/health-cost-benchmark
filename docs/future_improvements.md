@@ -29,28 +29,25 @@ MAPE fora da amostra.
 - Avaliação com o gabarito sintético (precision@k) e rotulagem ativa pelos auditores (*human-in-the-loop*).
 - Explicabilidade por célula (SHAP ou contribuição por *feature*) para justificar cada alerta.
 
-## 3. Análise conversacional
+## 3. Análise conversacional ✅ implementado
 
-**Já existe:** `hcb/ai/tools.py` com funções determinísticas (`get_kpis`, `compare_by`, `cost_trend`,
-`list_outliers`), especificações JSON Schema (`TOOL_SPECS`) e um despachante (`call_tool`) com validação de
-entrada.
-
-**Próximos passos:**
-- Aba "Pergunte aos dados" no Streamlit (`st.chat_input`). O LLM interpreta a pergunta, chama as ferramentas e
-  redige a resposta **citando os números retornados**.
-- **Regra de ouro:** o modelo nunca calcula nem inventa números. Todo valor vem de uma ferramenta testada.
-- Credenciais via variável de ambiente ou `st.secrets` (já ignorado no `.gitignore`), **nunca no código**.
-
-## 4. Agente de IA para exploração dos dados
+A aba **🤖 Pergunte aos dados** do dashboard e o comando `python -m hcb.ai.agent` respondem perguntas em
+português usando a API do Claude com *tool use*. Detalhes em [`ai_agent.md`](ai_agent.md).
 
 **Próximos passos:**
-- Agente com *tool use* que encadeia análises. Por exemplo: "encontre os subgrupos com maior crescimento, veja
-  quais UFs puxam o aumento e liste os atípicos relacionados".
-- Novas ferramentas: decomposição da variação (volume × preço × mix), comparação entre períodos e geração de
-  relatório.
-- Guardrails: ferramentas somente leitura, limite de passos, lista de filtros permitidos (já validada em
-  `_filter`) e registro das chamadas para auditoria.
-- Avaliação: conjunto de perguntas com respostas de referência calculadas pelo pipeline (eval automatizado).
+- Respostas com gráfico, gerado por uma ferramenta que devolve a especificação Plotly.
+- Histórico persistente por usuário, com autenticação no deploy.
+
+## 4. Agente de IA para exploração dos dados ✅ implementado
+
+Tem 10 ferramentas somente leitura, entre elas `compare_periods`, que decompõe a variação do gasto em volume,
+mix e custo unitário. Também tem verificação de números (grounding), limite de etapas, fallback em caso de
+recusa, auditoria em JSONL e um eval com respostas de referência (`scripts/run_agent_eval.py`).
+
+**Próximos passos:**
+- Rodar o eval de forma agendada (CI noturno com a chave em *secrets*) e acompanhar a evolução das métricas.
+- Ferramentas de previsão (seção 1) e de anomalias com ML (seção 2) expostas ao agente.
+- Julgamento qualitativo das respostas por um segundo modelo (LLM-as-judge), com rubrica.
 
 ## 5. Engenharia de dados
 

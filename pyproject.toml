@@ -14,8 +14,9 @@ dependencies = [
   "numpy>=1.26",
   "scipy>=1.11",
   "plotly>=5.18",
-  "streamlit>=1.32",
+  "streamlit>=1.50",
   "PyYAML>=6.0",
+  "anthropic>=1.0,<2",
 ]
 
 [project.optional-dependencies]

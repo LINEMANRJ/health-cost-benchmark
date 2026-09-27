@@ -5,7 +5,7 @@ Pipeline de dados com validação de qualidade, indicadores com metodologia docu
 detecção de atípicos e um dashboard interativo.
 
 ![Python](https://img.shields.io/badge/Python-3.10%2B-2a78d6) ![Streamlit](https://img.shields.io/badge/Dashboard-Streamlit-eb6834)
-![Testes](https://img.shields.io/badge/testes-52%20passando-1baf7a) ![Licença](https://img.shields.io/badge/licen%C3%A7a-MIT-52514e)
+![Testes](https://img.shields.io/badge/testes-67%20passando-1baf7a) ![Licença](https://img.shields.io/badge/licen%C3%A7a-MIT-52514e)
 
 > ⚠️ **Os resultados deste repositório foram gerados a partir de uma base SINTÉTICA** que reproduz a
 > estrutura do SIH/SUS (DATASUS). Ela permite executar o projeto de ponta a ponta, offline. Os números
@@ -24,7 +24,7 @@ gráficos interativos, sem instalar nada.
 | **Problema** | Gestores precisam saber onde o gasto hospitalar cresce, onde paga-se mais pelo mesmo tipo de procedimento e quais registros merecem auditoria |
 | **Dados** | Produção hospitalar do SUS agregada (AIH aprovadas por mês × UF × subgrupo SIGTAP). Sem dados pessoais |
 | **Solução** | Pipeline validado → 15+ indicadores → testes estatísticos → detecção de atípicos → dashboard Streamlit |
-| **Diferenciais** | Índice de custo ajustado ao mix · atípicos com modelo de funnel plot (100% de recall na base de teste) · quarentena de dados inválidos · ferramentas prontas para agente de IA |
+| **Diferenciais** | Índice de custo ajustado ao mix · atípicos com modelo de funnel plot (100% de recall na base de teste) · quarentena de dados inválidos · **agente de IA que responde perguntas em português consultando só funções testadas** |
 | **Executar** | `pip install -r requirements.txt && pip install -e . && python -m hcb.pipeline && streamlit run dashboard/app.py` |
 
 ---
@@ -34,7 +34,7 @@ gráficos interativos, sem instalar nada.
 4. [Fonte dos dados](#4-fonte-dos-dados) · 5. [Arquitetura](#5-arquitetura) · 6. [Pipeline](#6-pipeline) ·
 7. [Metodologia](#7-metodologia) · 8. [Indicadores](#8-indicadores) · 9. [Tecnologias](#9-tecnologias-utilizadas) ·
 10. [Como executar](#10-como-executar) · 11. [Exemplos de resultados](#11-exemplos-de-resultados) ·
-12. [Limitações](#12-limitações) · 13. [Próximos passos](#13-próximos-passos) · [Future improvements](#future-improvements) ·
+[🤖 Agente de IA](#-agente-de-ia-pergunte-aos-dados) · 12. [Limitações](#12-limitações) · 13. [Próximos passos](#13-próximos-passos) · [Future improvements](#future-improvements) ·
 [Estrutura do repositório](#estrutura-do-repositório)
 
 ---
@@ -171,7 +171,8 @@ negativos, 4 com quantidade zero e 3 UFs inválidas). É **100% dos problemas in
 | Visualização | Plotly (dashboard), Matplotlib (figuras estáticas) |
 | Dashboard | Streamlit |
 | Configuração | YAML (`config/settings.yaml`) |
-| Qualidade | pytest (52 testes), ruff, GitHub Actions (Python 3.10 e 3.12) |
+| IA generativa | API do Claude (SDK `anthropic`): *tool use*, prompt caching, fallback em caso de recusa |
+| Qualidade | pytest (67 testes), ruff, GitHub Actions (Python 3.10 e 3.12) |
 | Notebooks | Jupyter (gerados e executados por script) |
 
 ## 10. Como executar
@@ -198,7 +199,7 @@ O dashboard também roda o pipeline sozinho na primeira abertura, se as saídas 
 
 ```bash
 pip install -r requirements-dev.txt
-pytest                               # 52 testes
+pytest                               # 67 testes
 ruff check .                         # lint
 python scripts/make_figures.py       # figuras do README
 python scripts/build_notebooks.py    # regera e executa os notebooks
@@ -213,7 +214,8 @@ Com `make`: `make install`, `make pipeline`, `make dashboard`, `make test`, `mak
 
 **Configuração** (`config/settings.yaml`): fonte de dados (`synthetic` ou `contract_csv`), período e semente
 da base sintética, limite de rejeição, limiar de atipicidade e nível de significância. Nenhuma credencial é
-necessária.
+necessária para o pipeline e o dashboard. Só o agente de IA precisa de `ANTHROPIC_API_KEY`, lida do ambiente
+(modelo em `.env.example`).
 
 ## 11. Exemplos de resultados
 
@@ -268,6 +270,29 @@ tabela exportável.
 | ✅ Qualidade | Os dados são confiáveis? O que foi rejeitado e por quê? |
 | ℹ️ Metodologia | Definição de cada indicador e limites de interpretação |
 
+## 🤖 Agente de IA: "Pergunte aos dados"
+
+Um agente conversacional (API do Claude com *tool use*) responde perguntas em português, como *"O que
+explica o aumento do gasto entre 2023 e 2024: volume, mix ou custo unitário?"*. Ele funciona na aba
+**🤖 Pergunte aos dados** do dashboard ou no terminal:
+
+```bash
+export ANTHROPIC_API_KEY="sua-chave"   # nunca versionada
+python -m hcb.ai.agent "Quais UFs gastam acima do esperado para o seu mix?" -v
+```
+
+- **O modelo não calcula números.** Ele escolhe entre 10 ferramentas determinísticas (`src/hcb/ai/tools.py`)
+  que executam o mesmo código testado do pipeline. Entre elas está `compare_periods`, que decompõe a
+  variação do gasto em efeitos **volume**, **mix** e **custo unitário**, com soma exata.
+- **Verificação de números (grounding):** cada número da resposta é conferido com as saídas das
+  ferramentas, e as divergências são sinalizadas na interface.
+- **Proteções:** ferramentas somente leitura com validação de entrada, limite de etapas, fallback em caso de
+  recusa, prompt caching e log de auditoria em JSONL.
+- **Qualidade:** testes sem custo (cliente simulado e SDK oficial contra um servidor local) e um eval com
+  respostas de referência calculadas pelo pipeline (`scripts/run_agent_eval.py`).
+
+📄 [Documentação do agente](docs/ai_agent.md)
+
 ## 12. Limitações
 
 - **Base sintética:** os resultados publicados não descrevem o SUS. Servem para demonstrar e validar o método.
@@ -297,8 +322,8 @@ A base para cada evolução já está no código. Detalhes em [`docs/future_impr
 |---|---|---|
 | **Previsão de custos** | `hcb/forecasting.py`: baseline sazonal com deriva e `backtest()` (MAPE fora da amostra) | ETS/SARIMA/gradient boosting por subgrupo e região; adotar só se superar o baseline |
 | **Anomalias com Machine Learning** | Escore robusto e **gabarito sintético** para medir precisão e recall | Isolation Forest/LOF multivariado, change-point detection, explicabilidade por alerta |
-| **Análise conversacional** | `hcb/ai/tools.py`: ferramentas determinísticas com JSON Schema (`TOOL_SPECS`) e despachante validado | Aba "Pergunte aos dados" com LLM + *tool use*; o modelo nunca calcula números, só chama ferramentas |
-| **Agente de IA** | Ferramentas somente leitura, filtros em lista de permitidos e testes | Agente multi-etapas com guardrails, log de chamadas e *eval* com respostas de referência |
+| **Análise conversacional** | ✅ **Implementado:** aba "Pergunte aos dados" com a API do Claude e *tool use* ([docs](docs/ai_agent.md)) | Respostas com gráfico gerado pela ferramenta; histórico salvo por usuário |
+| **Agente de IA** | ✅ **Implementado:** 10 ferramentas somente leitura, grounding numérico, auditoria e eval | Rodar o eval a cada mudança no CI noturno; ferramentas de previsão e de ML para anomalias |
 
 ## Estrutura do repositório
 
@@ -319,14 +344,14 @@ health-cost-benchmark/
 │   ├── ingestion/              # sintético, TabNet, loader
 │   ├── processing/             # tratamento, validação, transformação
 │   ├── analysis/               # indicadores, estatística, atípicos
-│   ├── ai/tools.py             # ferramentas para agente de IA
+│   ├── ai/                     # agente de IA: agent.py, tools.py, grounding.py
 │   ├── forecasting.py          # baseline de previsão
 │   ├── reporting.py            # resumo analítico
 │   └── pipeline.py             # orquestração (CLI)
 ├── dashboard/                  # app Streamlit + gráficos Plotly
 ├── notebooks/                  # 01 exploratória · 02 estatística · 03 atípicos
 ├── scripts/                    # geração de dados, figuras, notebooks, site (Pages)
-├── tests/                      # 52 testes unitários e de integração
+├── tests/                      # 67 testes unitários e de integração
 ├── reports/                    # relatório de qualidade e resumo analítico
 ├── docs/                       # arquitetura, fontes, dicionário, metodologia, evolução
 └── .github/workflows/          # ci.yml (lint + testes + pipeline) · pages.yml (deploy do site)

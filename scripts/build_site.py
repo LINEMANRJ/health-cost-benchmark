@@ -225,7 +225,7 @@ def build(output: Path) -> Path:
 <nav class="toc"><div class="wrap">
   <a href="#tempo">1. Evolução</a><a href="#variacao">2. Variação</a><a href="#atipicos">3. Atípicos</a>
   <a href="#regioes">4. Regiões</a><a href="#concentracao">5. Concentração</a><a href="#qualidade">Qualidade</a>
-  <a href="#como-funciona">Como funciona</a><a href="#executar">Executar</a>
+  <a href="#como-funciona">Como funciona</a><a href="#agente">Agente de IA</a><a href="#executar">Executar</a>
 </div></nav>
 
 <main class="wrap">
@@ -299,10 +299,28 @@ def build(output: Path) -> Path:
     <div class="step"><b>Análise</b>tendência, testes, atípicos</div><span class="arrow">→</span>
     <div class="step"><b>Visualização</b>Streamlit · esta página</div>
   </div>
-  <p class="answer">Stack: Python, pandas, SciPy, Plotly, Streamlit e pytest (52 testes), com CI no GitHub Actions.
+  <p class="answer">Stack: Python, pandas, SciPy, Plotly, Streamlit e pytest (67 testes), com CI no GitHub Actions.
   Esta página é gerada pelos mesmos módulos testados do pipeline.
   Veja a <a href="{BLOB}/docs/architecture.md">arquitetura</a>, o <a href="{BLOB}/docs/data_dictionary.md">dicionário de dados</a>
   e os <a href="{BLOB}/docs/future_improvements.md">próximos passos</a>: previsão, ML para anomalias e agente de IA.</p>
+</section>
+
+<section id="agente">
+  <h2>🤖 Agente de IA: "Pergunte aos dados"</h2>
+  <p class="answer">No dashboard, um agente conversacional baseado na API do Claude com <i>tool use</i> responde
+  perguntas em português, como <i>"O que explica o aumento do gasto entre 2023 e 2024: volume, mix ou custo
+  unitário?"</i>. <b>O modelo não calcula números.</b> Ele escolhe entre 10 ferramentas que executam o mesmo
+  código testado desta página, e cada número da resposta é conferido com as saídas das ferramentas antes de
+  ser exibido.</p>
+  <div class="flow">
+    <div class="step"><b>Pergunta</b>linguagem natural</div><span class="arrow">→</span>
+    <div class="step"><b>Claude</b>escolhe a ferramenta</div><span class="arrow">→</span>
+    <div class="step"><b>Ferramentas</b>somente leitura, testadas</div><span class="arrow">→</span>
+    <div class="step"><b>Grounding</b>confere os números</div><span class="arrow">→</span>
+    <div class="step"><b>Resposta</b>com as consultas feitas</div>
+  </div>
+  <p class="answer">A página é estática, então o chat roda no dashboard local com a sua chave de API. Veja a
+  <a href="{BLOB}/docs/ai_agent.md">documentação do agente</a>.</p>
 </section>
 
 <section id="executar">

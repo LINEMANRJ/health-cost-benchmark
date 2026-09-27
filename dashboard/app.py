@@ -5,6 +5,7 @@ Execução:  streamlit run dashboard/app.py
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -17,6 +18,7 @@ import charts  # noqa: E402
 import pandas as pd  # noqa: E402
 import streamlit as st  # noqa: E402
 
+from hcb.ai.agent import AgentError, Conversation, HealthCostAgent  # noqa: E402
 from hcb.analysis import indicators, outliers, statistics  # noqa: E402
 from hcb.config import load_settings  # noqa: E402
 from hcb.formatting import brl, brl_compact, number, pct  # noqa: E402
@@ -135,7 +137,7 @@ c[4].metric("Custo por dia", brl(k["custo_por_dia"], 0),
 c[5].metric("Células atípicas", number(n_out), help="Competência × UF × subgrupo com |z robusto| > 3,5.")
 
 tabs = st.tabs(["📈 Evolução", "📊 Distribuição", "🗺️ Regiões e UFs", "🧮 Concentração",
-                "🚩 Atípicos", "📋 Dados", "✅ Qualidade", "ℹ️ Metodologia"])
+                "🚩 Atípicos", "📋 Dados", "✅ Qualidade", "ℹ️ Metodologia", "🤖 Pergunte aos dados"])
 
 # --------------------------------------------------------------------------- evolução
 with tabs[0]:
@@ -153,18 +155,18 @@ with tabs[0]:
              f"(Theil–Sen; IC95% {pct(total_tr['ic95_inf'])} a {pct(total_tr['ic95_sup'])}). "
              "Valores nominais — parte do crescimento reflete inflação e reajustes de tabela.")
     st.plotly_chart(charts.time_series(series, metric, metric_label, "regiao" if split else None,
-                                       money=metric != "internacoes"), use_container_width=True)
+                                       money=metric != "internacoes"), width="stretch")
     col1, col2 = st.columns([3, 2])
     with col1:
         question("O custo médio está acelerando ou desacelerando?",
                  "Variação de cada mês contra o mesmo mês do ano anterior (remove sazonalidade).")
-        st.plotly_chart(charts.yoy_bars(indicators.monthly(df)), use_container_width=True)
+        st.plotly_chart(charts.yoy_bars(indicators.monthly(df)), width="stretch")
     with col2:
         if tr is not None and not tr.empty:
             question("A tendência é estatisticamente consistente por região?")
             st.dataframe(
                 tr[["regiao", "crescimento_anual", "ic95_inf", "ic95_sup", "p_ajustado_holm", "tendencia"]],
-                hide_index=True, use_container_width=True,
+                hide_index=True, width="stretch",
                 column_config={
                     "regiao": "Região",
                     "crescimento_anual": st.column_config.NumberColumn("Cresc. anual", format="percent"),
@@ -180,17 +182,17 @@ with tabs[1]:
     question("Como se distribui o custo por internação dentro de cada subgrupo?",
              "Cada observação é uma célula UF × mês. Caixas largas indicam grande heterogeneidade de custo "
              "entre UFs/meses; pontos isolados estão além de 1,5 × IQR (Tukey, escala log).")
-    st.plotly_chart(charts.box_by_subgroup(df), use_container_width=True)
+    st.plotly_chart(charts.box_by_subgroup(df), width="stretch")
     sg_sel = st.selectbox("Detalhar subgrupo", sorted(df["subgrupo_nome"].unique()))
     question(f"Qual o formato da distribuição em “{sg_sel}”?")
-    st.plotly_chart(charts.histogram(df, sg_sel), use_container_width=True)
+    st.plotly_chart(charts.histogram(df, sg_sel), width="stretch")
     question("Quais subgrupos apresentam maior variação de custo entre UFs?",
              "CV = desvio-padrão ÷ média do custo médio das UFs (UFs com ≥ 30 internações no período).")
     var = statistics.variation_between_ufs(df)
     st.dataframe(
         var[["subgrupo_nome", "ufs_avaliadas", "cv_entre_ufs", "razao_p90_p10", "uf_menor_custo", "menor_custo",
              "uf_maior_custo", "maior_custo"]],
-        hide_index=True, use_container_width=True,
+        hide_index=True, width="stretch",
         column_config={
             "subgrupo_nome": "Subgrupo", "ufs_avaliadas": "UFs",
             "cv_entre_ufs": st.column_config.ProgressColumn("CV entre UFs", format="percent", min_value=0,
@@ -209,7 +211,7 @@ with tabs[2]:
              "Índice = custo observado ÷ custo esperado se cada internação custasse a média nacional do seu "
              "subgrupo no mesmo mês (padronização indireta). Remove o efeito de UFs fazerem procedimentos "
              "mais caros; não controla gravidade dentro do subgrupo.")
-    st.plotly_chart(charts.mix_index_bars(mix), use_container_width=True)
+    st.plotly_chart(charts.mix_index_bars(mix), width="stretch")
 
     col1, col2 = st.columns(2)
     with col1:
@@ -220,7 +222,7 @@ with tabs[2]:
         st.dataframe(
             reg[["regiao", "valor_total", "participacao_valor", "internacoes", "custo_medio_por_internacao",
                  "indice_custo_ajustado", "internacoes_por_10mil_hab_mes"]],
-            hide_index=True, use_container_width=True,
+            hide_index=True, width="stretch",
             column_config={
                 "regiao": "Região",
                 "valor_total": st.column_config.NumberColumn("Valor total", format="compact"),
@@ -238,7 +240,7 @@ with tabs[2]:
                  "Associação descritiva (não causal): volume pode refletir porte da rede, perfil de casos "
                  "e referência de pacientes de outras UFs.")
         per_uf = indicators.summarize(df[df["subgrupo_nome"] == sg_pick], ["uf_sigla", "regiao"])
-        st.plotly_chart(charts.volume_cost_scatter(per_uf), use_container_width=True)
+        st.plotly_chart(charts.volume_cost_scatter(per_uf), width="stretch")
     regional = statistics.regional_differences(df)
     n_sig = int(regional["diferenca_significativa"].sum())
     question("As diferenças regionais são estatisticamente relevantes?",
@@ -247,7 +249,7 @@ with tabs[2]:
     st.dataframe(
         regional[["subgrupo_nome", "ufs", "epsilon2", "magnitude_efeito", "p_ajustado_holm",
                   "regiao_maior_mediana", "regiao_menor_mediana"]],
-        hide_index=True, use_container_width=True,
+        hide_index=True, width="stretch",
         column_config={"subgrupo_nome": st.column_config.TextColumn("Subgrupo", width="large"), "ufs": "UFs",
                        "epsilon2": st.column_config.NumberColumn("ε²", format="%.2f"),
                        "magnitude_efeito": "Efeito",
@@ -262,13 +264,13 @@ with tabs[3]:
              f"<b>{summ['itens_para_participacao_alvo']} de {summ['itens']}</b> subgrupos (em azul) respondem por "
              f"80% do valor. HHI = {number(summ['hhi'])} (acima de 1.500 indica concentração moderada; "
              "acima de 2.500, alta).")
-    st.plotly_chart(charts.pareto_bars(table), use_container_width=True)
+    st.plotly_chart(charts.pareto_bars(table), width="stretch")
     question("Onde o gasto é alto por volume e onde é alto por custo unitário?")
     sg_tab = indicators.summarize(df, ["grupo_nome", "subgrupo_nome"])
     st.dataframe(
         sg_tab[["subgrupo_nome", "grupo_nome", "valor_total", "participacao_valor", "internacoes",
                 "custo_medio_por_internacao", "custo_mediano_celula", "permanencia_media", "custo_por_dia"]],
-        hide_index=True, use_container_width=True,
+        hide_index=True, width="stretch",
         column_config={
             "subgrupo_nome": "Subgrupo", "grupo_nome": "Grupo",
             "valor_total": st.column_config.NumberColumn("Valor total", format="compact"),
@@ -294,11 +296,11 @@ with tabs[4]:
              f"<b>{len(flagged)}</b> células atípicas no recorte; {len(above)} acima do esperado, com excesso "
              f"estimado de <b>{brl_compact(excess)}</b>. O esperado considera o mesmo subgrupo e UF, ajustado ao "
              "nível nacional do mês; o limiar considera o tamanho da célula (funnel plot).")
-    st.plotly_chart(charts.outlier_scatter(sc, thr), use_container_width=True)
+    st.plotly_chart(charts.outlier_scatter(sc, thr), width="stretch")
     st.caption("Atipicidade é um sinal para priorizar auditoria e verificação de registro — não comprova erro, "
                "fraude ou ineficiência.")
     st.dataframe(
-        flagged, hide_index=True, use_container_width=True,
+        flagged, hide_index=True, width="stretch",
         column_config={
             "competencia": "Competência", "uf_sigla": "UF", "regiao": "Região", "subgrupo_codigo": "Cód.",
             "subgrupo_nome": "Subgrupo",
@@ -319,7 +321,7 @@ with tabs[5]:
             "qtd_internacoes", "valor_total", "dias_permanencia", "custo_por_internacao", "custo_por_dia",
             "permanencia_media"]
     st.dataframe(
-        df[cols], hide_index=True, use_container_width=True, height=480,
+        df[cols], hide_index=True, width="stretch", height=480,
         column_config={
             "competencia": "Competência", "regiao": "Região", "uf_sigla": "UF", "grupo_nome": "Grupo",
             "subgrupo_codigo": "Cód.", "subgrupo_nome": "Subgrupo",
@@ -342,13 +344,13 @@ with tabs[6]:
              "Linhas com erro não entram em nenhum indicador; alertas são mantidos e sinalizados.")
     rules = pd.DataFrame(quality["rules"]).drop(columns=["examples"])
     rules["resultado"] = rules["failed_rows"].map(lambda n: "✅ ok" if n == 0 else f"⚠️ {n} linha(s)")
-    st.dataframe(rules[["name", "description", "severity", "resultado"]], hide_index=True, use_container_width=True,
+    st.dataframe(rules[["name", "description", "severity", "resultado"]], hide_index=True, width="stretch",
                  column_config={"name": "Regra", "description": "Descrição", "severity": "Severidade",
                                 "resultado": "Resultado"})
     checks = pd.DataFrame(quality["dataset_checks"])
     checks["passed"] = checks["passed"].map({True: "✅ ok", False: "⚠️ falhou"})
     st.dataframe(checks[["name", "description", "severity", "passed", "detail"]], hide_index=True,
-                 use_container_width=True,
+                 width="stretch",
                  column_config={"name": "Verificação", "description": "Descrição", "severity": "Severidade",
                                 "passed": "Resultado", "detail": "Detalhe"})
 
@@ -378,3 +380,80 @@ perfil de casos, complexidade da rede ou registro. Correlação não implica cau
 Documentação completa: `docs/methodology.md` e `docs/data_sources.md`.
         """
     )
+
+# --------------------------------------------------------------------------- agente de IA
+EXAMPLES = [
+    "O que explica o aumento do gasto entre 2023 e 2024: volume, mix ou custo unitário?",
+    "Quais UFs gastam mais do que o esperado para o seu mix de procedimentos?",
+    "Quais atípicos de cirurgia do aparelho circulatório devo auditar primeiro?",
+    "A tendência de custo é diferente entre as regiões?",
+]
+
+
+@st.cache_resource(show_spinner=False)
+def get_agent() -> HealthCostAgent:
+    settings = load_settings()
+    data, _, _, synthetic = load_data()
+    return HealthCostAgent(data, synthetic=synthetic, audit_log=settings.reports_dir / "agent_audit.jsonl")
+
+
+def render_turn(question: str, result) -> None:
+    with st.chat_message("user"):
+        st.markdown(question)
+    with st.chat_message("assistant"):
+        st.markdown(result.answer)
+        if result.ungrounded:
+            st.warning("⚠️ Números sem correspondência nos resultados das ferramentas (verifique): "
+                       + ", ".join(result.ungrounded))
+        label = f"Como cheguei a esta resposta — {len(result.tool_calls)} consulta(s) aos dados"
+        with st.expander(label):
+            st.caption("✅ Todos os números conferem com as ferramentas." if result.grounded else
+                       "Alguns números não foram encontrados nas saídas das ferramentas.")
+            for call in result.tool_calls:
+                status = "✅" if call.ok else "❌"
+                st.markdown(f"{status} `{call.name}` · {call.duration_ms} ms")
+                st.code(json.dumps(call.input, ensure_ascii=False, indent=2), language="json")
+                if call.error:
+                    st.caption(f"Erro devolvido ao modelo: {call.error}")
+            st.caption(f"Modelo: {result.model} · etapas: {result.steps} · tokens de entrada: "
+                       f"{number(result.usage['input_tokens'])} (cache: "
+                       f"{number(result.usage['cache_read_input_tokens'])}) · saída: "
+                       f"{number(result.usage['output_tokens'])}")
+
+
+with tabs[8]:
+    question("Pergunte aos dados em linguagem natural",
+             "Um agente de IA (Claude) consulta as mesmas funções testadas do pipeline e responde citando os "
+             "números retornados. Cada resposta mostra as consultas feitas e verifica se todos os números "
+             "vieram dos dados. Os filtros da barra lateral não se aplicam aqui: o agente usa a base completa "
+             "e declara os recortes que escolheu.")
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        st.info("Para usar o agente, defina a variável de ambiente `ANTHROPIC_API_KEY` antes de iniciar o "
+                "Streamlit (ou faça `ant auth login`). Veja `docs/ai_agent.md`. Nenhuma chave é armazenada "
+                "no projeto.")
+    st.session_state.setdefault("agent_conv", Conversation())
+    st.session_state.setdefault("agent_turns", [])
+
+    cols = st.columns(len(EXAMPLES))
+    clicked = None
+    for col, example in zip(cols, EXAMPLES, strict=True):
+        if col.button(example, width="stretch"):
+            clicked = example
+    for q, r in st.session_state["agent_turns"]:
+        render_turn(q, r)
+
+    typed = st.chat_input("Ex.: Qual região teve maior crescimento do custo médio?")
+    prompt = typed or clicked
+    if prompt:
+        with st.spinner("Consultando os dados…"):
+            try:
+                res = get_agent().ask(prompt, st.session_state["agent_conv"])
+            except AgentError as exc:
+                st.error(str(exc))
+            else:
+                st.session_state["agent_turns"].append((prompt, res))
+                render_turn(prompt, res)
+    if st.session_state["agent_turns"] and st.button("Nova conversa"):
+        st.session_state["agent_conv"] = Conversation()
+        st.session_state["agent_turns"] = []
+        st.rerun()

@@ -37,3 +37,6 @@ data/external/*
 
 # Site estático (gerado pelo workflow do GitHub Pages)
 site/
+
+# Logs do agente de IA (podem conter perguntas de usuários)
+reports/agent_audit.jsonl

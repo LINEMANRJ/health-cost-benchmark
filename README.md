@@ -5,12 +5,15 @@ Pipeline de dados com validação de qualidade, indicadores com metodologia docu
 detecção de atípicos e um dashboard interativo.
 
 ![Python](https://img.shields.io/badge/Python-3.10%2B-2a78d6) ![Streamlit](https://img.shields.io/badge/Dashboard-Streamlit-eb6834)
-![Testes](https://img.shields.io/badge/testes-51%20passando-1baf7a) ![Licença](https://img.shields.io/badge/licen%C3%A7a-MIT-52514e)
+![Testes](https://img.shields.io/badge/testes-52%20passando-1baf7a) ![Licença](https://img.shields.io/badge/licen%C3%A7a-MIT-52514e)
 
 > ⚠️ **Os resultados deste repositório foram gerados a partir de uma base SINTÉTICA** que reproduz a
 > estrutura do SIH/SUS (DATASUS). Ela permite executar o projeto de ponta a ponta, offline. Os números
 > ilustram os métodos e **não descrevem a realidade do SUS**. Para usar dados reais, veja
 > [Fonte dos dados](#4-fonte-dos-dados).
+
+🌐 **Página do projeto (GitHub Pages):** https://linemanrj.github.io/health-cost-benchmark/ — resultados com
+gráficos interativos, sem instalar nada.
 
 ![Dashboard — visão geral](docs/images/dashboard_overview.png)
 
@@ -168,7 +171,7 @@ negativos, 4 com quantidade zero e 3 UFs inválidas). É **100% dos problemas in
 | Visualização | Plotly (dashboard), Matplotlib (figuras estáticas) |
 | Dashboard | Streamlit |
 | Configuração | YAML (`config/settings.yaml`) |
-| Qualidade | pytest (51 testes), ruff, GitHub Actions (Python 3.10 e 3.12) |
+| Qualidade | pytest (52 testes), ruff, GitHub Actions (Python 3.10 e 3.12) |
 | Notebooks | Jupyter (gerados e executados por script) |
 
 ## 10. Como executar
@@ -195,11 +198,16 @@ O dashboard também roda o pipeline sozinho na primeira abertura, se as saídas 
 
 ```bash
 pip install -r requirements-dev.txt
-pytest                               # 51 testes
+pytest                               # 52 testes
 ruff check .                         # lint
 python scripts/make_figures.py       # figuras do README
 python scripts/build_notebooks.py    # regera e executa os notebooks
+python scripts/build_site.py         # gera o site estático em site/ (GitHub Pages)
 ```
+
+**GitHub Pages:** o workflow `.github/workflows/pages.yml` executa o pipeline, gera o site com
+`scripts/build_site.py` (mesmos cálculos e gráficos do dashboard, em HTML estático com Plotly) e publica a
+cada push na `main`. Para ativar: *Settings → Pages → Build and deployment → Source: GitHub Actions*.
 
 Com `make`: `make install`, `make pipeline`, `make dashboard`, `make test`, `make lint` e `make all`.
 
@@ -317,11 +325,11 @@ health-cost-benchmark/
 │   └── pipeline.py             # orquestração (CLI)
 ├── dashboard/                  # app Streamlit + gráficos Plotly
 ├── notebooks/                  # 01 exploratória · 02 estatística · 03 atípicos
-├── scripts/                    # geração de dados, figuras, notebooks
-├── tests/                      # 51 testes unitários e de integração
+├── scripts/                    # geração de dados, figuras, notebooks, site (Pages)
+├── tests/                      # 52 testes unitários e de integração
 ├── reports/                    # relatório de qualidade e resumo analítico
 ├── docs/                       # arquitetura, fontes, dicionário, metodologia, evolução
-└── .github/workflows/ci.yml    # lint + testes + pipeline
+└── .github/workflows/          # ci.yml (lint + testes + pipeline) · pages.yml (deploy do site)
 ```
 
 ---

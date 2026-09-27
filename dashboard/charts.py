@@ -46,7 +46,7 @@ def _layout(fig: go.Figure, height: int = 380, **kw) -> go.Figure:
 
 def time_series(df: pd.DataFrame, value: str, label: str, by: str | None, money: bool) -> go.Figure:
     fig = go.Figure()
-    hover = "%{x|%b/%Y}<br>" + (f"{label}: R$ %{{y:,.2f}}" if money else f"{label}: %{{y:,.0f}}")
+    hover = "%{x|%m/%Y}<br>" + (f"{label}: R$ %{{y:,.2f}}" if money else f"{label}: %{{y:,.0f}}")
     if by:
         for region in [r for r in REGION_ORDER if r in set(df[by].astype(str))]:
             part = df[df[by].astype(str) == region]
@@ -63,6 +63,7 @@ def time_series(df: pd.DataFrame, value: str, label: str, by: str | None, money:
                                      mode="lines", line=dict(width=2, color=INK_2, dash="dot"),
                                      hovertemplate="Média móvel 3m: R$ %{y:,.2f}<extra></extra>"))
     fig = _layout(fig, hovermode="x unified")
+    fig.update_xaxes(tickformat="%m/%Y")
     fig.update_yaxes(tickprefix="R$ " if money else "", tickformat="~s" if metric_is_large(df, value) else ",.0f",
                      rangemode="tozero" if not money else "normal")
     return fig
@@ -76,8 +77,9 @@ def yoy_bars(df: pd.DataFrame) -> go.Figure:
     d = df.dropna(subset=["variacao_12m"])
     colors = [CRITICAL if v > 0 else PRIMARY for v in d["variacao_12m"]]
     fig = go.Figure(go.Bar(x=d["data"], y=d["variacao_12m"], marker_color=colors,
-                           hovertemplate="%{x|%b/%Y}: %{y:+.1%}<extra></extra>"))
+                           hovertemplate="%{x|%m/%Y}: %{y:+.1%}<extra></extra>"))
     fig = _layout(fig, height=240, bargap=0.25)
+    fig.update_xaxes(tickformat="%m/%Y")
     fig.update_yaxes(tickformat="+.0%", zeroline=True, zerolinecolor=AXIS)
     return fig
 

@@ -34,3 +34,6 @@ data/external/*
 .DS_Store
 .vscode/
 .idea/
+
+# Site estático (gerado pelo workflow do GitHub Pages)
+site/

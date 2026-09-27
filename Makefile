@@ -1,4 +1,4 @@
-.PHONY: install install-dev data pipeline dashboard test lint figures notebooks all clean
+.PHONY: install install-dev data pipeline dashboard test lint figures notebooks site all clean
 
 PY ?= python
 
@@ -29,7 +29,10 @@ figures:          ## Figuras estáticas do README
 notebooks:        ## Regera e executa os notebooks
 	$(PY) scripts/build_notebooks.py
 
-all: pipeline test figures notebooks
+site:             ## Gera o site estático (GitHub Pages) em site/
+	$(PY) scripts/build_site.py
+
+all: pipeline test figures notebooks site
 
 clean:
 	rm -rf data/processed/* data/raw/*.csv .pytest_cache .ruff_cache
